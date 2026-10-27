@@ -2333,6 +2333,35 @@ int ObTransformSimplifyExpr::recursive_push_not(ObRawExpr *&expr,
   return ret;
 }
 
+int ObTransformSimplifyExpr::keep_removed_not_result_type(const ObRawExpr &removed_not,
+                                                          ObRawExpr *&expr)
+{
+  // A predicate that needs no bool wrapper of its own can still report a
+  // different result type than the NOT pair removed from above it: a
+  // comparison or LIKE reports BIGINT where NOT reports INT32. A parent whose
+  // other operands already carry the implicit casts deduced against the NOT's
+  // type would then deduce a different common type for them, and adding a
+  // second implicit cast above the first one is rejected. Keeping the removed
+  // type through a bool wrapper leaves the parent's deduction unchanged.
+  int ret = OB_SUCCESS;
+  ObRawExprFactory *expr_factory = NULL;
+  ObOpRawExpr *bool_expr = NULL;
+  if (OB_ISNULL(expr) || OB_ISNULL(ctx_) || OB_ISNULL(expr_factory = ctx_->expr_factory_)) {
+    ret = OB_ERR_UNEXPECTED;
+  } else if (expr->get_result_type().get_type() == removed_not.get_result_type().get_type()) {
+    // the simplified predicate already reports the removed NOT's type
+  } else if (OB_FAIL(expr_factory->create_raw_expr(T_OP_BOOL, bool_expr))) {
+  } else if (OB_ISNULL(bool_expr)) {
+    ret = OB_ERR_UNEXPECTED;
+  } else if (OB_FAIL(bool_expr->add_flag(IS_INNER_ADDED_EXPR))) {
+  } else if (OB_FAIL(bool_expr->set_param_expr(expr))) {
+  } else if (OB_FAIL(bool_expr->formalize(ctx_->session_info_))) {
+  } else {
+    expr = bool_expr;
+  }
+  return ret;
+}
+
 int ObTransformSimplifyExpr::do_push_not(ObRawExpr *&expr,
                                          hash::ObHashMap<uint64_t, ObRawExpr *> &push_expr_map,
                                          bool &trans_happened)
@@ -2382,6 +2411,7 @@ int ObTransformSimplifyExpr::do_push_not(ObRawExpr *&expr,
       } else if (OB_ISNULL(temp)) {
         ret = OB_ERR_UNEXPECTED;
       } else if (OB_FAIL(temp->formalize(ctx_->session_info_))) {
+      } else if (OB_FAIL(keep_removed_not_result_type(*expr, temp))) {
       } else {
         expr = temp;
         is_valid = false;

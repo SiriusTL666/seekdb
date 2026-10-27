@@ -168,6 +168,7 @@ private:
   int recursive_push_not(ObRawExpr *&expr,
                          hash::ObHashMap<uint64_t, ObRawExpr *> &push_expr_map,
                          bool &trans_happened);
+  int keep_removed_not_result_type(const ObRawExpr &removed_not, ObRawExpr *&expr);
   int do_push_not(ObRawExpr *&expr,
                   hash::ObHashMap<uint64_t, ObRawExpr *> &push_expr_map,
                   bool &trans_happened);
